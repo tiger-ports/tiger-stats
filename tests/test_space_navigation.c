@@ -1,0 +1,24 @@
+#include "../src/space_navigation.h"
+#include <assert.h>
+#include <stdio.h>
+int main(void)
+{
+    STSpaceNode root = {0}, dir = {0}, file = {0}, link = {0};
+    STSpaceNode *children[] = {&dir, &file, &link};
+    STSpaceNavigation nav;
+    root.flags = dir.flags = ST_SPACE_DIRECTORY;
+    link.flags = ST_SPACE_SYMLINK;
+    root.children = children; root.child_count = 3;
+    st_space_nav_init(&nav, &root);
+    assert(st_space_nav_current(&nav) == &root);
+    assert(!st_space_nav_up(&nav));
+    assert(!st_space_nav_enter(&nav, 1));
+    assert(!st_space_nav_enter(&nav, 2));
+    assert(!st_space_nav_enter(&nav, 3));
+    assert(st_space_nav_enter(&nav, 0));
+    assert(st_space_nav_current(&nav) == &dir);
+    assert(!st_space_nav_enter(&nav, 0));
+    assert(st_space_nav_up(&nav) && st_space_nav_current(&nav) == &root);
+    puts("PASS disk navigation stays inside scanned tree");
+    return 0;
+}
