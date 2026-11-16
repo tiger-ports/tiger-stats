@@ -97,6 +97,7 @@ int main(void)
     assert(launches == 1 && timers == 1 && [e busy]);
     [e refresh:nil]; [e refreshTick:nil]; assert(launches == 1);
     [e deliver:0 name:"first"]; assert(![e busy] && [e tree]);
+    assert([[e message] rangeOfString:@"Logical size: 0 B"].location != NSNotFound);
     [e navigate]; assert([e depth] == 1);
     [e refresh:nil]; assert(launches == 2 && [e busy]);
     old = [e tree]; [e deliver:EACCES name:NULL]; assert([e tree] == old && ![e busy]);

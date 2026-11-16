@@ -1,6 +1,8 @@
 #import "space_explorer.h"
 #import "space_chart.h"
+#import "space_size.h"
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #if defined(MAC_OS_X_VERSION_MAX_ALLOWED) && MAC_OS_X_VERSION_MAX_ALLOWED < 1050
@@ -175,7 +177,7 @@ static NSTextField *label(NSRect frame)
     column = [[[NSTableColumn alloc] initWithIdentifier:@"name"] autorelease];
     [[column headerCell] setStringValue:@"Item (chart colour)"]; [column setWidth:310]; [table addTableColumn:column];
     column = [[[NSTableColumn alloc] initWithIdentifier:@"size"] autorelease];
-    [[column headerCell] setStringValue:@"Logical bytes"]; [column setWidth:140]; [table addTableColumn:column];
+    [[column headerCell] setStringValue:@"Logical size"]; [column setWidth:140]; [table addTableColumn:column];
     [table setDataSource:(id)self]; [table setDelegate:(id)self];
     [table setAllowsMultipleSelection:NO];
     [table setTarget:self]; [table setDoubleAction:@selector(enter:)];
@@ -308,13 +310,18 @@ static NSTextField *label(NSRect frame)
         [path appendString:spaceName(navigation.stack[i]->name)];
     }
     [pathLabel setStringValue:path];
-    [status setStringValue:[NSString stringWithFormat:@"%@%@%@%@%@%llu logical bytes — not allocated or reclaimable space. Hard links counted once per scan; symlinks are not followed.",
-        operationMessage ? operationMessage : @"",
-        scanError ? [NSString stringWithFormat:@"Refresh failed: %@; showing previous results. ", spaceName(strerror(scanError))] : @"",
-        (root->flags & ST_SPACE_INCOMPLETE) ? @"SCAN INCOMPLETE (limits, errors, or volume boundaries). " : @"",
-        (node->flags & ST_SPACE_UNREADABLE) ? @"THIS FOLDER UNREADABLE. " : @"",
-        scanning ? @"Refreshing in background. " : @"",
-        (unsigned long long)node->bytes]];
+    {
+        char sizebuf[32];
+        if (!st_space_format_size(node->bytes, sizebuf, sizeof sizebuf))
+            snprintf(sizebuf, sizeof sizebuf, "%llu B", (unsigned long long)node->bytes);
+        [status setStringValue:[NSString stringWithFormat:@"%@%@%@%@%@Logical size: %s — not allocated or reclaimable space. Hard links counted once per scan; symlinks are not followed.",
+            operationMessage ? operationMessage : @"",
+            scanError ? [NSString stringWithFormat:@"Refresh failed: %@; showing previous results. ", spaceName(strerror(scanError))] : @"",
+            (root->flags & ST_SPACE_INCOMPLETE) ? @"SCAN INCOMPLETE (limits, errors, or volume boundaries). " : @"",
+            (node->flags & ST_SPACE_UNREADABLE) ? @"THIS FOLDER UNREADABLE. " : @"",
+            scanning ? @"Refreshing in background. " : @"",
+            sizebuf]];
+    }
     [(STSpaceChartView *)chart setNode:node]; [table reloadData];
     [upButton setEnabled:navigation.depth > 0]; [openButton setEnabled:NO]; [trashButton setEnabled:NO];
 }
@@ -330,8 +337,11 @@ static NSTextField *label(NSRect frame)
     (void)view;
     if (!node || row < 0 || (size_t)row >= node->child_count) return @"";
     child = node->children[row];
-    if ([[column identifier] isEqualToString:@"size"])
-        return [NSString stringWithFormat:@"%llu", (unsigned long long)child->bytes];
+    if ([[column identifier] isEqualToString:@"size"]) {
+        char buf[32];
+        if (st_space_format_size(child->bytes, buf, sizeof buf)) return [NSString stringWithUTF8String:buf];
+        return [NSString stringWithFormat:@"%llu B", (unsigned long long)child->bytes];
+    }
     if (child->flags & ST_SPACE_SYMLINK) suffix = @" [symlink, excluded]";
     else if (child->flags & ST_SPACE_UNREADABLE) suffix = @" [unreadable]";
     else if (child->flags & ST_SPACE_INCOMPLETE) suffix = @" [incomplete]";
