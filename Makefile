@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -O2 -Wall -Wextra -Wno-deprecated-declarations -std=gnu99
+CFLAGS = -O2 -Wall -Wextra -Wno-deprecated-declarations -Werror -std=gnu99
 APP = build/Stats-Tiger.app
 BIN = $(APP)/Contents/MacOS/Stats-Tiger
 

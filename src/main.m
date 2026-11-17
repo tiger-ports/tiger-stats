@@ -21,6 +21,7 @@
     int havePrevious;
 }
 - (void)refresh:(NSTimer *)unused;
+- (void)launchActivityMonitor:(id)sender;
 - (void)quit:(id)sender;
 @end
 
@@ -53,6 +54,11 @@
     [exploreItem setTarget:explorer];
     [menu addItem:exploreItem];
     [exploreItem release];
+    [menu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *activityMonitorItem = [[NSMenuItem alloc] initWithTitle:@"Open Activity Monitor" action:@selector(launchActivityMonitor:) keyEquivalent:@""];
+    [activityMonitorItem setTarget:self];
+    [menu addItem:activityMonitorItem];
+    [activityMonitorItem release];
     [menu addItem:[NSMenuItem separatorItem]];
     quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Stats Tiger" action:@selector(quit:) keyEquivalent:@"q"];
     [quitItem setTarget:self];
@@ -109,6 +115,18 @@
     } else {
         [networkItem setTitle:@"Network: unavailable"];
     }
+}
+
+- (void)launchActivityMonitor:(id)sender
+{
+    NSTask *task;
+    NSArray *arguments;
+    (void)sender;
+    task = [[[NSTask alloc] init] autorelease];
+    [task setLaunchPath:@"/usr/bin/open"];
+    arguments = [NSArray arrayWithObjects:@"-a", @"Activity Monitor", nil];
+    [task setArguments:arguments];
+    [task launch];
 }
 
 - (void)quit:(id)sender
