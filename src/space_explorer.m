@@ -1,6 +1,7 @@
 #import "space_explorer.h"
 #import "space_chart.h"
 #import "space_size.h"
+#import "space_sunburst.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,6 +76,127 @@ static NSTextField *label(NSRect frame)
     }
     [[NSColor whiteColor] set];
     [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(center.x-radius*0.52, center.y-radius*0.52, radius*1.04, radius*1.04)] fill];
+}
+@end
+
+/* Sunburst visualization view - Daisy Disk style radial hierarchy */
+@interface STSpaceSunburstView : NSView { const STSpaceNode *node; NSMutableArray *segments; }
+- (void)setNode:(const STSpaceNode *)value;
+@end
+
+typedef struct {
+    NSMutableArray *segments;
+} SunburstContext;
+
+static void sunburst_segment_callback(const STSunburstSegment *seg, void *ctx)
+{
+    SunburstContext *context = (SunburstContext *)ctx;
+    NSMutableDictionary *dict = [[NSMutableDictionary alloc] init];
+    
+    if (seg->label) {
+        [dict setObject:[NSString stringWithUTF8String:seg->label] forKey:@"label"];
+    }
+    [dict setObject:[NSNumber numberWithInt:seg->depth] forKey:@"depth"];
+    [dict setObject:[NSNumber numberWithDouble:seg->start_angle] forKey:@"start"];
+    [dict setObject:[NSNumber numberWithDouble:seg->end_angle] forKey:@"end"];
+    [dict setObject:[NSNumber numberWithFloat:seg->inner_r] forKey:@"inner_r"];
+    [dict setObject:[NSNumber numberWithFloat:seg->outer_r] forKey:@"outer_r"];
+    [dict setObject:[NSNumber numberWithLongLong:(long long)seg->node->bytes] forKey:@"bytes"];
+    
+    if (seg->color) {
+        [dict setObject:(id)seg->color forKey:@"color"];
+        CGColorRelease(seg->color);
+    }
+    
+    [context->segments addObject:dict];
+    [dict release];
+}
+
+@implementation STSpaceSunburstView
+- (void)dealloc { [segments release]; [super dealloc]; }
+- (void)setNode:(const STSpaceNode *)value
+{
+    if (value == node) return;
+    node = value;
+    [segments release];
+    segments = [[NSMutableArray alloc] init];
+    
+    if (node && node->child_count > 0) {
+        STSunburstConfig config;
+        config.inner_radius = 30.0f;
+        config.ring_width = 35.0f;
+        config.center_x = 160;
+        config.center_y = 190;
+        config.max_depth = 5;
+        config.color_mode = 0; /* Color by size */
+        
+        SunburstContext ctx;
+        ctx.segments = segments;
+        st_space_sunburst_generate((STSpaceNode *)node, &config, sunburst_segment_callback, &ctx);
+    }
+    [self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)dirty
+{
+    NSRect bounds = [self bounds];
+    NSBezierPath *path;
+    
+    (void)dirty;
+    [[NSColor whiteColor] set];
+    NSRectFill(bounds);
+    
+    if (!segments || [segments count] == 0) return;
+    
+    for (NSDictionary *seg in segments) {
+        double start = [[seg objectForKey:@"start"] doubleValue];
+        double end = [[seg objectForKey:@"end"] doubleValue];
+        float inner_r = [[seg objectForKey:@"inner_r"] floatValue];
+        float outer_r = [[seg objectForKey:@"outer_r"] floatValue];
+        CGColorRef color = (CGColorRef)[seg objectForKey:@"color"];
+        NSPoint center = NSMakePoint(160, 190);
+        
+        /* Draw ring segment */
+        path = [NSBezierPath bezierPath];
+        [path moveToPoint:NSMakePoint(center.x + inner_r * cosf((float)(start * 3.14159 / 180.0)),
+                                       center.y + inner_r * sinf((float)(start * 3.14159 / 180.0)))];
+        [path appendBezierPathWithArcWithCenter:center radius:inner_r
+                                       startAngle:(float)start endAngle:(float)end clockwise:NO];
+        [path appendBezierPathWithArcWithCenter:center radius:outer_r
+                                       startAngle:(float)end endAngle:(float)start clockwise:YES];
+        [path closePath];
+        
+        if (color) {
+            [[NSColor colorWithCalibratedRed:0.5f green:0.5f blue:0.7f alpha:1.0f] set];
+        } else {
+            [[NSColor lightGrayColor] set];
+        }
+        [path fill];
+        [[NSColor darkGrayColor] set];
+        [path setLineWidth:0.5f];
+        [path stroke];
+    }
+    
+    /* Draw center circle with total size */
+    if (node && node->bytes > 0) {
+        char *total_str = st_space_sunburst_format_bytes(node->bytes);
+        NSString *label = total_str ? [NSString stringWithUTF8String:total_str] : @"0B";
+        NSPoint center = NSMakePoint(160, 190);
+        float center_radius = 25.0f;
+        
+        [[NSColor whiteColor] set];
+        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(center.x - center_radius,
+                                                             center.y - center_radius,
+                                                             center_radius * 2, center_radius * 2)] fill];
+        [[NSColor darkGrayColor] set];
+        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(center.x - center_radius,
+                                                             center.y - center_radius,
+                                                             center_radius * 2, center_radius * 2)] stroke];
+        [label drawAtPoint:NSMakePoint(center.x - 20, center.y - 10)
+              withAttributes:nil];
+        
+        if (total_str) free(total_str);
+    }
 }
 @end
 
@@ -170,7 +292,7 @@ static NSTextField *label(NSRect frame)
     pathLabel = [label(NSMakeRect(20, 482, 780, 20)) retain]; [content addSubview:pathLabel];
     status = [label(NSMakeRect(20, 428, 780, 48)) retain];
     [[status cell] setWraps:YES]; [content addSubview:status];
-    chart = [[STSpaceChartView alloc] initWithFrame:NSMakeRect(20, 135, 300, 280)]; [content addSubview:chart];
+    chart = [[STSpaceSunburstView alloc] initWithFrame:NSMakeRect(20, 135, 350, 280)]; [content addSubview:chart];
     scroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(330, 100, 470, 315)] autorelease];
     [scroll setHasVerticalScroller:YES]; [scroll setBorderType:NSBezelBorder];
     table = [[NSTableView alloc] initWithFrame:NSMakeRect(0, 0, 450, 315)];
@@ -240,7 +362,7 @@ static NSTextField *label(NSRect frame)
     [selectedPath release]; selectedPath = saved;
     [operationMessage release]; operationMessage = nil;
     ++generation; closed = NO; pendingScan = YES; scanError = 0;
-    [(STSpaceChartView *)chart setNode:NULL];
+    [(STSpaceSunburstView *)chart setNode:NULL];
     st_space_nav_init(&navigation, NULL); st_space_free(root); root = NULL;
     [pathLabel setStringValue:selectedPath]; [table reloadData];
     [upButton setEnabled:NO]; [openButton setEnabled:NO]; [trashButton setEnabled:NO];
@@ -298,7 +420,7 @@ static NSTextField *label(NSRect frame)
             else [status setStringValue:[NSString stringWithFormat:@"%@Scan failed: %@", operationMessage ? operationMessage : @"", spaceName(strerror(result->error))]];
         } else {
             STSpaceNode *old = root;
-            [(STSpaceChartView *)chart setNode:NULL];
+            [(STSpaceSunburstView *)chart setNode:NULL];
             st_space_nav_init(&navigation, NULL);
             root = result->tree; result->tree = NULL;
             st_space_free(old);
@@ -333,7 +455,7 @@ static NSTextField *label(NSRect frame)
             scanning ? @"Refreshing in background. " : @"",
             sizebuf]];
     }
-    [(STSpaceChartView *)chart setNode:node]; [table reloadData];
+    [(STSpaceSunburstView *)chart setNode:node]; [table reloadData];
     [upButton setEnabled:navigation.depth > 0]; [openButton setEnabled:NO]; [trashButton setEnabled:NO];
 }
 - (STTableIndex)numberOfRowsInTableView:(NSTableView *)view
@@ -459,7 +581,7 @@ static NSTextField *label(NSRect frame)
     trashConfirming = NO;
     /* A positive tag may mean work remains in flight, even if the return value
        is inconsistent. Never infer completion from a notification. */
-    ++generation; [(STSpaceChartView *)chart setNode:NULL];
+    ++generation; [(STSpaceSunburstView *)chart setNode:NULL];
     st_space_nav_init(&navigation, NULL); st_space_free(root); root = NULL;
     [table reloadData]; [trashButton setEnabled:NO]; [openButton setEnabled:NO]; [upButton setEnabled:NO];
     if (tag > 0) {
@@ -482,7 +604,7 @@ static NSTextField *label(NSRect frame)
 {
     (void)note; closed = YES; ++generation; pendingScan = NO;
     [self stopRefreshTimer];
-    [(STSpaceChartView *)chart setNode:NULL];
+    [(STSpaceSunburstView *)chart setNode:NULL];
     st_space_nav_init(&navigation, NULL); st_space_free(root); root = NULL;
 }
 - (void)dealloc
