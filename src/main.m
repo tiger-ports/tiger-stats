@@ -140,9 +140,10 @@ static int self_check(void)
     STDisk disk;
     STNetworkSample network;
     STNetworkRate networkRate;
-    STNetworkState networkState = {0};
+    STNetworkState networkState;
     double percent;
     char cpu[128], mem[128], disk_text[128], network_text[128];
+    memset(&networkState, 0, sizeof(networkState));
     if (st_read_cpu(&first) != 0) { fprintf(stderr, "CPU sample failed\n"); return 1; }
     if (st_read_network(&network) != 0) { fprintf(stderr, "Network sample failed\n"); return 1; }
     st_network_update(&networkState, &network, &networkRate);

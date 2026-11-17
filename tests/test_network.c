@@ -8,9 +8,12 @@
 
 int main(void)
 {
-    STNetworkState state = {0};
-    STNetworkSample a = {0}, b;
-    STNetworkRate rate = {0};
+    STNetworkState state;
+    STNetworkSample a, b;
+    STNetworkRate rate;
+    memset(&state, 0, sizeof(state));
+    memset(&a, 0, sizeof(a));
+    memset(&rate, 0, sizeof(rate));
     a.count = 1;
     strcpy(a.entries[0].name, "en0");
     a.entries[0].index = 2;

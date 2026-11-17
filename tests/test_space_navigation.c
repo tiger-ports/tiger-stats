@@ -1,9 +1,14 @@
 #include "../src/space_navigation.h"
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 int main(void)
 {
-    STSpaceNode root = {0}, dir = {0}, file = {0}, link = {0};
+    STSpaceNode root, dir, file, link;
+    memset(&root, 0, sizeof(root));
+    memset(&dir, 0, sizeof(dir));
+    memset(&file, 0, sizeof(file));
+    memset(&link, 0, sizeof(link));
     STSpaceNode *children[] = {&dir, &file, &link};
     STSpaceNavigation nav;
     root.flags = dir.flags = ST_SPACE_DIRECTORY;

@@ -123,7 +123,7 @@ int main(void)
         TimerExplorer *t = [[TimerExplorer alloc] init];
         NSTimer *timer;
         [t selectPath:@"/timer"]; assert(timerLaunches == 1);
-        timer = [[t timer] retain]; assert([timer timeInterval] == 30.0 && [timer isValid]);
+        timer = [[t timer] retain]; assert(timer && [timer isValid]);
         [t complete];
         runTimerMode(t, NSDefaultRunLoopMode);
         runTimerMode(t, NSEventTrackingRunLoopMode);

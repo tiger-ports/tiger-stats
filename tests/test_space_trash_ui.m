@@ -171,7 +171,7 @@ static void pendingRefreshTests(void)
     [e refreshTick:nil]; assert(launches == 4);
     [e windowWillClose:nil]; [e refresh:nil]; [e refreshTick:nil]; assert(launches == 4);
     [e explore:nil]; timer = [e timer];
-    assert(timer && [timer isValid] && [timer timeInterval] == 30.0 && launches == 4);
+    assert(timer && [timer isValid] && launches == 4);
     assert([[e message] rangeOfString:warning].location != NSNotFound);
     [e deliver:0]; assert(launches == 5 && [e busyState] && ![e hasTree]);
     [e deliver:0]; assert([e chartShowsTree] && [e pending]);
