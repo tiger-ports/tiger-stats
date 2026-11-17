@@ -197,6 +197,7 @@ static NSTextField *label(NSRect frame)
 {
     NSOpenPanel *panel;
     NSString *path = nil;
+    NSString *directory;
     (void)sender;
     if (choosing || trashConfirming) return;
     if (trashPending) {
@@ -215,8 +216,18 @@ static NSTextField *label(NSRect frame)
     }
     choosing = YES;
     panel = [NSOpenPanel openPanel];
+    if (!panel) {
+        choosing = NO;
+        return;
+    }
     [panel setCanChooseFiles:NO]; [panel setCanChooseDirectories:YES]; [panel setAllowsMultipleSelection:NO];
-    if ([panel runModalForDirectory:nil file:nil types:nil] == NSOKButton && [[panel filenames] count])
+#if defined(MAC_OS_X_VERSION_MAX_ALLOWED) && MAC_OS_X_VERSION_MAX_ALLOWED < 1050
+    /* Tiger 10.4 requires explicit directory; nil causes uninitialized state/crash */
+    directory = NSHomeDirectory();
+#else
+    directory = nil;
+#endif
+    if ([panel runModalForDirectory:directory file:nil types:nil] == NSOKButton && [[panel filenames] count])
         path = [[[panel filenames] objectAtIndex:0] retain];
     choosing = NO;
     if (path) { [self selectPath:path]; [path release]; }
